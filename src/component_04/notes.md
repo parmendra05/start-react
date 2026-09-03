@@ -151,32 +151,167 @@ function App() {
 
 ## 6. Uncontrolled Components
 
-An **uncontrolled component** lets the DOM handle its own state. You read the value using a `ref` instead of state.
+### What is an Uncontrolled Component?
+An **uncontrolled component** is an input element that manages its own value **internally through the DOM** — React does not control or track its value via state.
+
+- Instead of using `useState` + `value` + `onChange`, you let the browser handle the input naturally.
+- You access the value only when you need it (e.g. on form submit) using a **`ref`**.
+- `ref` is a way to directly reference a DOM element in React.
+
+```
+Controlled:    User types → onChange → setState → React re-renders → input shows new value
+Uncontrolled:  User types → DOM updates itself → React is NOT involved
+```
+
+---
+
+### How `useRef` Works with Uncontrolled Inputs
+
+- `useRef()` creates a **ref object** with a `.current` property.
+- When you attach `ref={inputRef}` to a DOM element, `inputRef.current` points directly to that DOM node.
+- You can then read `inputRef.current.value` to get the input's current value at any time.
 
 ```jsx
 import { useRef } from 'react';
 
 function App() {
-  const inputRef = useRef();
+  const inputRef = useRef();   // inputRef.current = undefined initially
+
+  // After render: inputRef.current = the actual <input> DOM element
 
   function handleSubmit() {
-    console.log(inputRef.current.value);  // read value directly from DOM
+    console.log(inputRef.current.value);  // reads value directly from DOM
   }
 
   return (
     <div>
-      <input ref={inputRef} />
+      <input ref={inputRef} placeholder="Type something" />
       <button onClick={handleSubmit}>Submit</button>
     </div>
   );
 }
 ```
 
+- No `useState`, no `onChange`, no re-renders on every keystroke.
+- React only reads the value when `handleSubmit` is called.
+
+---
+
+### Setting a Default Value
+
+For uncontrolled inputs, use `defaultValue` instead of `value` to set an initial value.
+
+```jsx
+// ✅ Correct for uncontrolled — sets initial value, DOM manages after that
+<input ref={inputRef} defaultValue="Raju" />
+
+// ❌ Wrong — using value without onChange makes it read-only and throws a warning
+<input ref={inputRef} value="Raju" />
+```
+
+Same applies to checkboxes — use `defaultChecked` instead of `checked`:
+```jsx
+<input type="checkbox" ref={checkRef} defaultChecked={true} />
+```
+
+---
+
+### Full Uncontrolled Form Example
+
+```jsx
+import { useRef } from 'react';
+
+function LoginForm() {
+  const emailRef    = useRef();
+  const passwordRef = useRef();
+
+  function handleSubmit(e) {
+    e.preventDefault();
+
+    const email    = emailRef.current.value;
+    const password = passwordRef.current.value;
+
+    if (!email || !password) {
+      alert('All fields are required.');
+      return;
+    }
+
+    console.log('Submitted:', { email, password });
+  }
+
+  function handleReset() {
+    emailRef.current.value    = '';   // manually clear the input
+    passwordRef.current.value = '';
+  }
+
+  return (
+    <form onSubmit={handleSubmit}>
+      <input ref={emailRef}    type="email"    placeholder="Email" />
+      <input ref={passwordRef} type="password" placeholder="Password" />
+      <button type="submit">Login</button>
+      <button type="button" onClick={handleReset}>Reset</button>
+    </form>
+  );
+}
+```
+
+- Values are only read on submit — no state, no re-renders during typing.
+- To reset, you manually set `ref.current.value = ''` — React doesn't manage it.
+
+---
+
+### When to Use Uncontrolled Components
+
+| Use Case | Recommended |
+|---|---|
+| Simple form, just need value on submit | ✅ Uncontrolled is fine |
+| Real-time validation while typing | ❌ Use Controlled |
+| Conditional rendering based on input value | ❌ Use Controlled |
+| Integrating with non-React (third-party) libraries | ✅ Uncontrolled works better |
+| File input (`<input type="file" />`) | ✅ Always uncontrolled — React can't control file inputs |
+| Complex forms with many interdependent fields | ❌ Use Controlled |
+
+---
+
+### File Input — Always Uncontrolled
+
+File inputs are a special case — React **cannot** control their value. They are always uncontrolled.
+
+```jsx
+function FileUpload() {
+  const fileRef = useRef();
+
+  function handleUpload() {
+    const file = fileRef.current.files[0];  // access selected file
+    console.log(file.name, file.size, file.type);
+  }
+
+  return (
+    <div>
+      <input type="file" ref={fileRef} />
+      <button onClick={handleUpload}>Upload</button>
+    </div>
+  );
+}
+```
+
+---
+
+### Controlled vs Uncontrolled — Full Comparison
+
 | | Controlled | Uncontrolled |
 |---|---|---|
-| Value managed by | React state | DOM itself |
-| How to read value | `state variable` | `ref.current.value` |
-| Recommended | ✅ Yes (most cases) | For simple/quick cases |
+| Value managed by | React state (`useState`) | DOM itself |
+| How to read value | State variable directly | `ref.current.value` |
+| Re-renders on typing | ✅ Yes — on every keystroke | ❌ No — only when you read it |
+| Real-time validation | ✅ Easy | ❌ Harder |
+| Reset input | `setState('')` | `ref.current.value = ''` |
+| Initial value | `value={...}` + `useState` | `defaultValue={...}` |
+| File inputs | ❌ Not possible | ✅ Only option |
+| Recommended for | Most cases | Simple forms, file inputs, 3rd party libs |
+| Code complexity | Slightly more (state + onChange) | Less boilerplate |
+
+> React officially recommends **controlled components** for most use cases because they give React full control over the form data, making validation, conditional rendering, and state management much easier.
 
 ---
 
@@ -253,7 +388,32 @@ const [isAgreed, setIsAgreed] = useState(false);
 
 ---
 
-## 9. Handling Select Dropdown
+## 9. Handling Textarea
+
+In HTML, `<textarea>` uses inner content for its value. In React, it works like a regular input — use `value` and `onChange`.
+
+```jsx
+// HTML way (old)
+<textarea>Hello</textarea>
+
+// React way — controlled, same pattern as input
+const [message, setMessage] = useState('');
+
+<textarea
+  value={message}
+  onChange={(e) => setMessage(e.target.value)}
+  rows={4}
+  placeholder="Write your message..."
+/>
+<p>Characters: {message.length}</p>
+```
+
+- `value` + `onChange` — same controlled pattern as `<input>`.
+- Self-closing `<textarea />` is valid in JSX (unlike HTML).
+
+---
+
+## 10. Handling Select Dropdown
 
 ```jsx
 const [city, setCity] = useState('');
@@ -270,7 +430,55 @@ const [city, setCity] = useState('');
 
 ---
 
-## 10. Form Validation
+## 11. Handling Radio Buttons
+
+Radio buttons work as a group — only one can be selected at a time. Use a single state variable to track which option is selected.
+
+```jsx
+const [gender, setGender] = useState('');
+
+<div>
+  <label>
+    <input
+      type="radio"
+      value="male"
+      checked={gender === 'male'}           // controlled — checked when state matches
+      onChange={(e) => setGender(e.target.value)}
+    />
+    Male
+  </label>
+
+  <label>
+    <input
+      type="radio"
+      value="female"
+      checked={gender === 'female'}
+      onChange={(e) => setGender(e.target.value)}
+    />
+    Female
+  </label>
+
+  <label>
+    <input
+      type="radio"
+      value="other"
+      checked={gender === 'other'}
+      onChange={(e) => setGender(e.target.value)}
+    />
+    Other
+  </label>
+</div>
+
+<p>Selected: {gender}</p>
+```
+
+- `checked={gender === 'male'}` — each radio is controlled by comparing state to its value.
+- `e.target.value` — reads the `value` attribute of the selected radio button.
+- All radios in a group share the **same state variable** and the **same `onChange`**.
+
+---
+
+## 12. Form Validation
 
 ```jsx
 function LoginForm() {
@@ -307,7 +515,7 @@ function LoginForm() {
 
 ---
 
-## 11. Event Bubbling & stopPropagation
+## 13. Event Bubbling & stopPropagation
 
 **Event bubbling** means when an event fires on a child, it also fires on all its parent elements.
 
@@ -331,7 +539,42 @@ function App() {
 
 ---
 
-## 12. Synthetic Events
+## 14. Synthetic Events & Event Delegation
+
+### Synthetic Events
+React wraps native browser events in a **SyntheticEvent** — a cross-browser wrapper that works the same way in all browsers.
+
+- Same interface as native events (`e.target`, `e.preventDefault()`, etc.).
+- No need to worry about browser differences — React handles it.
+
+### Event Delegation (How React Attaches Events)
+
+In plain JavaScript, event listeners are attached directly to each DOM element:
+```js
+button.addEventListener('click', handleClick);  // attached to the button itself
+```
+
+React uses a different approach called **event delegation**:
+- React attaches **a single event listener** to the **root DOM node** (`#root`) for each event type.
+- When any event fires anywhere in the app, it bubbles up to `#root`.
+- React then figures out which component's handler to call.
+
+```
+User clicks button
+      ↓
+Event bubbles up to #root
+      ↓
+React's single listener at #root catches it
+      ↓
+React dispatches SyntheticEvent to the correct component handler
+```
+
+**Why this matters:**
+- More memory efficient — one listener per event type instead of one per element.
+- This is why `e.stopPropagation()` in React stops bubbling within React's tree, but the event has already reached `#root`.
+- Explains why React events work consistently even on dynamically added elements.
+
+---
 
 React wraps native browser events in a **SyntheticEvent** — a cross-browser wrapper that works the same way in all browsers.
 
@@ -341,7 +584,7 @@ React wraps native browser events in a **SyntheticEvent** — a cross-browser wr
 
 ---
 
-## 13. Quick Reference — Events Cheat Sheet
+## 15. Quick Reference — Events Cheat Sheet
 
 | Event | Used On | Key Property |
 |---|---|---|
@@ -358,7 +601,7 @@ React wraps native browser events in a **SyntheticEvent** — a cross-browser wr
 
 ---
 
-## 14. Interview Questions
+## 16. Interview Questions
 
 **Q1. How is event handling different in React vs plain HTML?**
 > In HTML, events are lowercase strings (`onclick`, `onchange`). In React, they are camelCase (`onClick`, `onChange`) and accept a function reference, not a string.
@@ -404,6 +647,15 @@ React wraps native browser events in a **SyntheticEvent** — a cross-browser wr
 
 **Q15. Can you use `onChange` on a select element in React?**
 > Yes. `onChange` on a `<select>` fires whenever the selected option changes, and `e.target.value` gives the value of the newly selected option — same pattern as a text input.
+
+**Q16. How do you handle a textarea in React? How is it different from HTML?**
+> In HTML, textarea uses inner content (`<textarea>Hello</textarea>`). In React, it uses `value` and `onChange` just like a regular input — `<textarea value={message} onChange={(e) => setMessage(e.target.value)} />`. It can also be self-closing in JSX.
+
+**Q17. How do you handle radio buttons in React?**
+> Use a single state variable for the group. Each radio has `checked={state === 'itsValue'}` and the same `onChange` handler that calls `setState(e.target.value)`. Only one can be selected at a time because only one will match the state.
+
+**Q18. What is event delegation? How does React use it?**
+> Event delegation means attaching one listener to a parent instead of individual listeners on each child. React attaches a single event listener per event type to the root `#root` DOM node. All events bubble up to it, and React dispatches the correct SyntheticEvent to the matching component handler — making it memory efficient.
 
 ---
 

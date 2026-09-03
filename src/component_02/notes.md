@@ -144,22 +144,88 @@ App (Parent)
 
 ## 7. `children` Prop
 
-React has a special built-in prop called `children` — it represents whatever you put **between the opening and closing tags** of a component.
+`children` is a **special built-in prop** that React automatically provides — you don't pass it like a normal prop. It represents whatever JSX you place **between the opening and closing tags** of a component.
 
+### How it works:
 ```jsx
-function Card({ children }) {
-  return <div className="card">{children}</div>;
-}
+// Without children — self-closing, nothing inside
+<Card />
 
-// Usage
+// With children — content placed between tags
 <Card>
   <h2>Hello</h2>
   <p>This is inside the card.</p>
 </Card>
 ```
 
-- Anything between `<Card>` and `</Card>` becomes `children`.
-- Very useful for building **wrapper/layout components**.
+React automatically passes everything between `<Card>` and `</Card>` as `props.children` to the component.
+
+### Receiving and rendering children:
+```jsx
+function Card({ children }) {
+  return <div className="card">{children}</div>;
+}
+```
+
+- `children` can be a single element, multiple elements, plain text, or even another component.
+- You render it just like any other prop using `{children}` inside JSX.
+
+### Real-world examples:
+
+**Example 1 — Layout / Wrapper component:**
+```jsx
+function PageLayout({ children }) {
+  return (
+    <div>
+      <header>My App</header>
+      <main>{children}</main>       {/* page content goes here */}
+      <footer>Footer</footer>
+    </div>
+  );
+}
+
+// Usage
+<PageLayout>
+  <h1>Welcome to Dashboard</h1>
+  <p>Here is your data.</p>
+</PageLayout>
+```
+
+**Example 2 — Button with custom label:**
+```jsx
+function Button({ children, onClick }) {
+  return <button onClick={onClick}>{children}</button>;
+}
+
+// Usage — children is just text here
+<Button onClick={handleSave}>Save Changes</Button>
+<Button onClick={handleDelete}>Delete</Button>
+```
+
+**Example 3 — children can be checked:**
+```jsx
+function Card({ children }) {
+  return (
+    <div className="card">
+      {children ? children : <p>No content provided.</p>}
+    </div>
+  );
+}
+```
+
+### Key Points:
+- `children` is **automatically** provided by React — you never pass it explicitly like `children={...}`.
+- It is just a regular prop under the hood — you can also access it as `props.children`.
+- Very useful for building **reusable wrapper, layout, and container components**.
+- `children` can be: text, a single element, multiple elements, or another component.
+
+```
+Parent passes JSX between tags
+           ↓
+   React sets props.children
+           ↓
+  Child renders {children}
+```
 
 ---
 
@@ -211,7 +277,187 @@ const userDetails = { name: "Raju", age: 25 };
 
 ---
 
-## 10. Rendering Lists with Props
+## 10. Renaming Props While Destructuring
+
+You can rename a prop to a different variable name while destructuring — useful when the prop name conflicts with an existing variable or you want a clearer local name.
+
+```jsx
+// Rename: firstName is received as prop, used as name locally
+function UserCard({ firstName: name, age: userAge }) {
+  return (
+    <div>
+      <h2>{name}</h2>      {/* using renamed variable */}
+      <p>{userAge}</p>
+    </div>
+  );
+}
+
+// Usage — still pass the original prop name
+<UserCard firstName="Raju" age={25} />
+```
+
+- Syntax: `{ propName: localName }` — left side is the prop name, right side is the local variable name.
+- The parent still passes `firstName` — only the variable name inside the component changes.
+
+---
+
+## 11. Nested Props — Passing Objects & Accessing Them
+
+When you pass an object as a prop, you access its fields using dot notation inside the component.
+
+```jsx
+// Passing an object as a prop
+<UserCard
+  user={{ name: "Raju", age: 25, city: "Hyderabad" }}
+/>
+
+// Receiving and accessing nested fields
+function UserCard({ user }) {
+  return (
+    <div>
+      <h2>{user.name}</h2>
+      <p>{user.age}</p>
+      <p>{user.city}</p>
+    </div>
+  );
+}
+```
+
+### Destructuring nested object props:
+```jsx
+// Destructure the nested object directly in the parameter
+function UserCard({ user: { name, age, city } }) {
+  return (
+    <div>
+      <h2>{name}</h2>
+      <p>{age}</p>
+      <p>{city}</p>
+    </div>
+  );
+}
+```
+
+- Cleaner — no need to write `user.name`, `user.age` everywhere.
+- Works the same as regular JS destructuring.
+
+---
+
+## 12. Callback Props — Child to Parent Communication
+
+Props flow **only downward** (parent → child). But what if a child needs to send data **back up** to the parent?
+
+The answer is **callback props** — the parent passes a function as a prop, the child calls it when something happens.
+
+```
+Parent defines function → passes it as prop → Child calls it → Parent receives data
+```
+
+### Example — Child sends data up to Parent:
+```jsx
+function Parent() {
+  function handleNameReceived(name) {
+    console.log('Child sent:', name);  // receives data from child
+  }
+
+  return <Child onNameSubmit={handleNameReceived} />;
+  //            ↑ passing function as prop
+}
+
+function Child({ onNameSubmit }) {
+  return (
+    <button onClick={() => onNameSubmit('Raju')}>
+      Send Name to Parent
+    </button>
+    //              ↑ child calls the function, passes data up
+  );
+}
+```
+
+### Real example — input in child, state in parent:
+```jsx
+function Parent() {
+  const [message, setMessage] = useState('');
+
+  return (
+    <div>
+      <p>Message from child: {message}</p>
+      <Child onMessageChange={setMessage} />
+    </div>
+  );
+}
+
+function Child({ onMessageChange }) {
+  return (
+    <input
+      onChange={(e) => onMessageChange(e.target.value)}
+      placeholder="Type something"
+    />
+  );
+}
+```
+
+- Parent owns the state (`message`).
+- Child receives `onMessageChange` as a prop and calls it on every keystroke.
+- Parent's state updates — UI re-renders with the new value.
+- This is the standard React pattern for **lifting state up**.
+
+---
+
+## 13. The `key` Prop — In Depth
+
+`key` is a **special reserved prop** in React — it is not accessible inside the component like regular props. React uses it internally.
+
+### Why React needs `key`:
+When rendering a list, React needs to track which item is which across re-renders. Without `key`, React can't tell if an item was added, removed, or just moved — leading to wrong re-renders and UI bugs.
+
+```jsx
+// ❌ No key — React warns and may render incorrectly
+{users.map((user) => (
+  <UserCard name={user.name} />
+))}
+
+// ✅ With key — React tracks each item correctly
+{users.map((user) => (
+  <UserCard key={user.id} name={user.name} />
+))}
+```
+
+### Rules for `key`:
+- Must be **unique among siblings** — not globally unique, just within the same list.
+- Should be **stable** — same item should always have the same key across renders.
+- Use a **unique id** from your data — not the array index if the list can change.
+
+### Why not use array index as key:
+```jsx
+// ⚠️ Avoid — index as key causes bugs when list order changes
+{users.map((user, index) => (
+  <UserCard key={index} name={user.name} />
+))}
+```
+
+- If you add an item to the beginning, all indexes shift — React thinks every item changed.
+- This causes unnecessary re-renders and can break component state.
+
+```jsx
+// ✅ Use a stable unique id
+{users.map((user) => (
+  <UserCard key={user.id} name={user.name} />
+))}
+```
+
+### Key is NOT accessible as a prop:
+```jsx
+function UserCard({ key, name }) {
+  console.log(key);  // ⚠️ undefined — key is reserved, React doesn't pass it
+}
+
+// If you need the id inside the component, pass it separately
+<UserCard key={user.id} id={user.id} name={user.name} />
+```
+
+---
+
+## 14. Rendering Lists with Props
 
 One of the most common real-world uses of props — rendering a list of items using `.map()`.
 
@@ -241,14 +487,22 @@ function App() {
 
 ---
 
-## 11. PropTypes — Type Checking for Props
+## 15. PropTypes — Type Checking for Props
 
-PropTypes let you **validate** the type of props a component receives. If wrong type is passed, React shows a warning in the console.
+### What is PropTypes?
+PropTypes is a **built-in type checking library** for React props. It validates that the correct data types are passed to a component and warns you in the browser console during development if something is wrong.
 
+### Why use PropTypes?
+- Catches bugs early — wrong data type passed? You get a clear warning.
+- Acts as **documentation** — anyone reading the component knows exactly what props it expects.
+- Helps in team projects where multiple developers use the same components.
+
+### Installation:
 ```bash
 npm install prop-types
 ```
 
+### Basic Usage:
 ```jsx
 import PropTypes from 'prop-types';
 
@@ -261,20 +515,104 @@ function UserCard({ name, age }) {
   );
 }
 
+// Define propTypes on the component
 UserCard.propTypes = {
-  name: PropTypes.string.isRequired,  // must be a string, required
-  age:  PropTypes.number.isRequired,  // must be a number, required
+  name: PropTypes.string.isRequired,  // must be a string AND required
+  age:  PropTypes.number.isRequired,  // must be a number AND required
 };
 ```
 
-- `.isRequired` — warns if the prop is not passed at all.
-- Common types: `PropTypes.string`, `PropTypes.number`, `PropTypes.bool`, `PropTypes.array`, `PropTypes.object`, `PropTypes.func`.
-- PropTypes only run in **development mode** — no impact on production.
-- In TypeScript projects, PropTypes are not needed (TypeScript handles type checking).
+### All Common PropTypes:
+| PropType | Validates |
+|---|---|
+| `PropTypes.string` | String value |
+| `PropTypes.number` | Number value |
+| `PropTypes.bool` | Boolean (true/false) |
+| `PropTypes.array` | Array |
+| `PropTypes.object` | Object |
+| `PropTypes.func` | Function |
+| `PropTypes.node` | Anything renderable (string, number, JSX) |
+| `PropTypes.element` | A React element (`<Component />`) |
+| `PropTypes.any` | Any data type |
+
+### `.isRequired`:
+- Add `.isRequired` to any type to make the prop **mandatory**.
+- If the prop is missing, React shows a warning in the console.
+```jsx
+UserCard.propTypes = {
+  name: PropTypes.string.isRequired,   // required
+  age:  PropTypes.number,              // optional — no warning if missing
+};
+```
+
+### Default Values with PropTypes:
+- Use `defaultProps` to set fallback values for optional props.
+```jsx
+UserCard.defaultProps = {
+  age: 18,   // used if age prop is not passed
+};
+```
+
+### PropTypes for Arrays & Objects:
+```jsx
+UserCard.propTypes = {
+  scores:  PropTypes.arrayOf(PropTypes.number),   // array of numbers
+  address: PropTypes.shape({                       // object with specific shape
+    city:  PropTypes.string,
+    pin:   PropTypes.string,
+  }),
+};
+```
+
+### PropTypes for children:
+```jsx
+Card.propTypes = {
+  children: PropTypes.node.isRequired,   // anything renderable, required
+};
+```
+
+### Full Example:
+```jsx
+import PropTypes from 'prop-types';
+
+function UserCard({ name, age, isActive, scores }) {
+  return (
+    <div>
+      <h2>{name}</h2>
+      <p>Age: {age}</p>
+      <p>Status: {isActive ? 'Active' : 'Inactive'}</p>
+      <p>Scores: {scores.join(', ')}</p>
+    </div>
+  );
+}
+
+UserCard.propTypes = {
+  name:     PropTypes.string.isRequired,
+  age:      PropTypes.number.isRequired,
+  isActive: PropTypes.bool,
+  scores:   PropTypes.arrayOf(PropTypes.number),
+};
+
+UserCard.defaultProps = {
+  isActive: true,
+  scores:   [],
+};
+```
+
+### PropTypes vs TypeScript:
+| | PropTypes | TypeScript |
+|---|---|---|
+| When it checks | Runtime (in browser) | Compile time (before running) |
+| Setup needed | `npm install prop-types` | TypeScript project setup |
+| Error visibility | Console warning | Code editor error |
+| Used in | `.jsx` projects | `.tsx` projects |
+| Recommended for | Beginners / JS projects | Production / large projects |
+
+> PropTypes only run in **development mode** — they are stripped out in production builds, so there is no performance impact.
 
 ---
 
-## 12. Key Rules of Props
+## 16. Key Rules of Props
 
 | Rule | Detail |
 |---|---|
@@ -286,7 +624,7 @@ UserCard.propTypes = {
 
 ---
 
-## 13. Props vs State (Quick Preview)
+## 17. Props vs State (Quick Preview)
 
 | | Props | State |
 |---|---|---|
@@ -299,7 +637,7 @@ UserCard.propTypes = {
 
 ---
 
-## 14. Interview Questions
+## 18. Interview Questions
 
 **Q1. What are props in React?**
 > Props are read-only inputs passed from a parent component to a child component, similar to function arguments. They make components dynamic and reusable.
@@ -311,7 +649,7 @@ UserCard.propTypes = {
 > Props are passed from parent to child and are read-only. State is managed within the component itself and can be changed using `useState`.
 
 **Q4. What are default props? How do you define them?**
-> Default props are fallback values used when a prop is not passed by the parent. They are defined directly in the function parameters: `function Person({ name = "Raju" })`.
+> There are two ways. First, directly in the function parameters: `function Person({ name = "Raju" })` — this is the modern recommended way. Second, using `defaultProps` object on the component: `Person.defaultProps = { name: "Raju" }` — this is the older approach but still valid.
 
 **Q5. What is unidirectional data flow in React?**
 > Data in React flows only from parent to child via props, never the other way. This one-way flow makes the app predictable and easier to debug.
@@ -345,6 +683,21 @@ UserCard.propTypes = {
 
 **Q15. Can you name the parameter anything instead of `props`?**
 > Yes. `props` is just a JavaScript function parameter name. You can use `info`, `data`, or anything else. However, `props` is the community convention. When using destructuring `{ name, age }`, the parameter name is irrelevant.
+
+**Q16. What are callback props? How does a child communicate with a parent?**
+> Since props only flow downward, a child communicates with a parent by calling a function passed as a prop. The parent defines the function, passes it as a prop, and the child calls it with data — this is called the callback prop pattern or "lifting state up".
+
+**Q17. How do you rename a prop while destructuring?**
+> Use the syntax `{ propName: localName }` in the destructuring. Example: `function UserCard({ firstName: name })` — the parent passes `firstName`, but inside the component it's used as `name`.
+
+**Q18. Why should you avoid using array index as a `key` in lists?**
+> When the list order changes (items added, removed, or reordered), indexes shift — React thinks every item changed and re-renders all of them. This causes performance issues and can break component state. Always use a stable unique id instead.
+
+**Q19. Can you access `key` inside a component as a prop?**
+> No. `key` is a reserved prop used internally by React and is never passed to the component. If you need the id value inside the component, pass it as a separate prop: `<UserCard key={user.id} id={user.id} />`.
+
+**Q20. What is "lifting state up" in React?**
+> Lifting state up means moving state to the closest common parent component so it can be shared between sibling components. The parent holds the state and passes it down via props, and children communicate back up via callback props.
 
 ---
 

@@ -1,5 +1,6 @@
 import Hello from "./component_01/Hello"
 import UserCard, { Person } from "./component_02/UserCard"
+import MyPage from "./component_05/MyPage"
 
 
 function App() {

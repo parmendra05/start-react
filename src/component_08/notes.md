@@ -4,17 +4,7 @@
 
 ## 1. What is React Router?
 
-React Router is the standard **client-side routing** library for React. It lets you build **Single Page Applications (SPAs)** where navigation between pages happens in the browser — without a full page reload from the server.
-
-```
-Traditional Multi-Page App:
-  Click link → browser requests new page from server → full reload ❌ (slow)
-
-React SPA with React Router:
-  Click link → React renders a different component → no reload ✅ (instant)
-```
-
-### Install React Router v6:
+React Router enables **client-side navigation** in React SPAs — clicking a link swaps the component on screen without a full page reload from the server.
 
 ```bash
 npm install react-router-dom
@@ -22,32 +12,33 @@ npm install react-router-dom
 
 ---
 
-## 2. Core Concepts
+## 2. All Hooks & Components — Quick Reference
 
-| Concept | Role |
-|---|---|
-| `BrowserRouter` | Wraps the app — enables routing using the browser's URL |
-| `Routes` | Container that holds all `Route` definitions |
-| `Route` | Maps a URL path to a component |
-| `Link` | Renders an `<a>` tag that navigates without reload |
-| `NavLink` | Like `Link` but adds an active class when the route matches |
-| `useNavigate` | Hook to programmatically navigate |
-| `useParams` | Hook to read URL parameters (`:id`) |
-| `useLocation` | Hook to read the current URL location object |
-| `Outlet` | Renders nested child routes inside a parent layout |
+| Name | Type | What it does |
+|---|---|---|
+| `BrowserRouter` | Component | Wraps the whole app, enables routing |
+| `Routes` | Component | Container — holds all `Route` definitions |
+| `Route` | Component | Maps a URL path to a component |
+| `Link` | Component | Navigate without page reload |
+| `NavLink` | Component | Like `Link` + adds active styling |
+| `Navigate` | Component | Declarative redirect (in JSX) |
+| `Outlet` | Component | Placeholder where child routes render |
+| `useNavigate` | Hook | Programmatic navigation from code |
+| `useParams` | Hook | Read dynamic URL segments (`:id`) |
+| `useLocation` | Hook | Read current URL, pathname, state |
+| `useSearchParams` | Hook | Read / write URL query parameters |
 
 ---
 
-## 3. Basic Setup
+## 3. Step-by-Step Setup
 
-Wrap your entire app in `<BrowserRouter>` — usually in `main.jsx`.
+### Step 1 — Wrap app in BrowserRouter (`main.jsx`)
 
 ```jsx
-// main.jsx
-import { StrictMode } from 'react';
-import { createRoot }  from 'react-dom/client';
+import { StrictMode }    from 'react';
+import { createRoot }    from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
-import App from './App';
+import App               from './App';
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
@@ -58,27 +49,20 @@ createRoot(document.getElementById('root')).render(
 );
 ```
 
----
-
-## 4. Defining Routes
-
-Use `<Routes>` and `<Route>` inside your `App.jsx` to map paths to components.
+### Step 2 — Define routes (`App.jsx`)
 
 ```jsx
-// App.jsx
 import { Routes, Route } from 'react-router-dom';
-import Home    from './pages/Home';
-import About   from './pages/About';
-import Contact from './pages/Contact';
+import Home     from './pages/Home';
+import About    from './pages/About';
 import NotFound from './pages/NotFound';
 
 function App() {
   return (
     <Routes>
-      <Route path="/"        element={<Home />}     />
-      <Route path="/about"   element={<About />}    />
-      <Route path="/contact" element={<Contact />}  />
-      <Route path="*"        element={<NotFound />} />
+      <Route path="/"      element={<Home />}     />
+      <Route path="/about" element={<About />}    />
+      <Route path="*"      element={<NotFound />} />  {/* 404 */}
     </Routes>
   );
 }
@@ -86,15 +70,7 @@ function App() {
 export default App;
 ```
 
-- `path="/"` — matches the root URL
-- `path="*"` — wildcard, catches all unmatched paths (404 page)
-- `element` — the JSX component to render for that path
-
----
-
-## 5. Link and NavLink
-
-Use `<Link>` instead of `<a href>` to navigate without a page reload.
+### Step 3 — Add navigation (`Navbar.jsx`)
 
 ```jsx
 import { Link } from 'react-router-dom';
@@ -104,77 +80,89 @@ function Navbar() {
     <nav>
       <Link to="/">Home</Link>
       <Link to="/about">About</Link>
-      <Link to="/contact">Contact</Link>
     </nav>
   );
 }
+
+export default Navbar;
 ```
 
-### NavLink — adds active styling automatically:
+That's the minimum working setup. ✅
+
+---
+
+## 4. Link vs NavLink
 
 ```jsx
-import { NavLink } from 'react-router-dom';
+import { Link, NavLink } from 'react-router-dom';
 
 function Navbar() {
   return (
     <nav>
-      <NavLink
-        to="/"
-        style={({ isActive }) => ({ fontWeight: isActive ? 'bold' : 'normal' })}
-      >
-        Home
-      </NavLink>
+      {/* Link — basic navigation */}
+      <Link to="/about">About</Link>
 
+      {/* NavLink — highlights the active link automatically via className */}
       <NavLink
         to="/about"
-        className={({ isActive }) => isActive ? 'active-link' : ''}
+        className={({ isActive }) => (isActive ? 'active' : '')}
+      >
+        About
+      </NavLink>
+
+      {/* NavLink — active styling via inline style */}
+      <NavLink
+        to="/about"
+        style={({ isActive }) => ({ fontWeight: isActive ? 'bold' : 'normal' })}
       >
         About
       </NavLink>
     </nav>
   );
 }
+
+export default Navbar;
 ```
 
-- `isActive` is `true` when the current URL matches the `to` path.
-- Both `style` and `className` accept a function that receives `{ isActive }`.
+> Use `NavLink` for navbars. Use `Link` everywhere else.
 
 ---
 
-## 6. URL Parameters — useParams
+## 5. URL Parameters — useParams
 
-Define dynamic segments in the path with `:paramName`, then read them with `useParams`.
+Dynamic path segments using `:paramName`.
 
 ```jsx
-// Route definition
+// App.jsx — define the route with a dynamic segment
 <Route path="/users/:id" element={<UserDetail />} />
 ```
 
 ```jsx
-// UserDetail.jsx
+// pages/UserDetail.jsx — read the param inside the component
 import { useParams } from 'react-router-dom';
 
 function UserDetail() {
   const { id } = useParams();  // reads ":id" from the URL
-
-  return <p>Showing details for user ID: {id}</p>;
+  return <h2>User ID: {id}</h2>;
 }
+
+export default UserDetail;
 ```
 
-### Multiple params:
-
+Multiple params:
 ```jsx
+// Route
 <Route path="/posts/:category/:postId" element={<Post />} />
 
-// In the component:
+// Component
 const { category, postId } = useParams();
 ```
 
 ---
 
-## 7. useNavigate — Programmatic Navigation
+## 6. useNavigate — Navigate from Code
 
-Use `useNavigate` to navigate from JavaScript code (e.g. after form submission, after login).
+Use this when navigation happens after logic, not a direct click.
 
 ```jsx
 import { useNavigate } from 'react-router-dom';
@@ -185,7 +173,10 @@ function LoginForm() {
   function handleSubmit(e) {
     e.preventDefault();
     // ... login logic
-    navigate('/dashboard');       // go to /dashboard
+    navigate('/dashboard');                     // push to history
+    navigate('/dashboard', { replace: true });  // replace — no back button
+    navigate(-1);                               // go back one step
+    navigate(1);                                // go forward one step
   }
 
   return (
@@ -194,116 +185,61 @@ function LoginForm() {
     </form>
   );
 }
+
+export default LoginForm;
 ```
 
-### Navigate options:
-
-```jsx
-navigate('/dashboard');            // push — adds to history
-navigate('/dashboard', { replace: true });  // replace — no back button entry
-navigate(-1);                      // go back one step (like browser back)
-navigate(1);                       // go forward one step
-navigate(-2);                      // go back two steps
-```
+> `replace: true` — use after login/logout so the user can't navigate back to the login page.
 
 ---
 
-## 8. useLocation — Reading the Current URL
+## 7. Nested Routes + Outlet (Shared Layout)
 
-`useLocation` returns the current location object with `pathname`, `search`, and `state`.
+This is how you build a persistent navbar/sidebar with different page content.
 
-```jsx
-import { useLocation } from 'react-router-dom';
-
-function CurrentPage() {
-  const location = useLocation();
-
-  return (
-    <div>
-      <p>Path: {location.pathname}</p>
-      <p>Query: {location.search}</p>
-    </div>
-  );
-}
-```
-
-### Reading query strings:
-
-```
-URL: /search?query=react&page=2
-```
+### Step 1 — Define nested routes in App.jsx
 
 ```jsx
-import { useLocation } from 'react-router-dom';
-
-function SearchResults() {
-  const location  = useLocation();
-  const params    = new URLSearchParams(location.search);
-  const query     = params.get('query');  // "react"
-  const page      = params.get('page');   // "2"
-
-  return <p>Searching for: {query} — Page {page}</p>;
-}
-```
-
-### Pass state between routes:
-
-```jsx
-// Navigate with state
-navigate('/profile', { state: { from: 'dashboard' } });
-
-// Read state on arrival
-const location = useLocation();
-console.log(location.state.from);  // "dashboard"
-```
-
----
-
-## 9. Nested Routes & Outlet
-
-Nested routes let a parent component define a **shared layout** (navbar, sidebar) while child routes render inside it via `<Outlet />`.
-
-```jsx
-// App.jsx
 import { Routes, Route } from 'react-router-dom';
-import Layout    from './layouts/Layout';
+import Layout    from './Layout';
 import Home      from './pages/Home';
 import About     from './pages/About';
 import Dashboard from './pages/Dashboard';
-import Settings  from './pages/Settings';
 
 function App() {
   return (
     <Routes>
-      {/* Parent route — renders Layout */}
+      {/* parent — Layout always renders */}
       <Route path="/" element={<Layout />}>
-        {/* Index route — renders at "/" */}
-        <Route index element={<Home />} />
-        <Route path="about"     element={<About />}     />
-
-        {/* Nested under /dashboard */}
-        <Route path="dashboard" element={<Dashboard />}>
-          <Route path="settings" element={<Settings />} />
-        </Route>
+        <Route index            element={<Home />}      />  {/* → "/" */}
+        <Route path="about"     element={<About />}     />  {/* → "/about" */}
+        <Route path="dashboard" element={<Dashboard />} />  {/* → "/dashboard" */}
       </Route>
     </Routes>
   );
 }
+
+export default App;
 ```
 
+### Step 2 — Add `<Outlet />` in the Layout
+
 ```jsx
-// layouts/Layout.jsx
-import { Outlet } from 'react-router-dom';
-import Navbar from '../components/Navbar';
+import { Outlet, NavLink } from 'react-router-dom';
 
 function Layout() {
   return (
-    <div>
-      <Navbar />           {/* always visible */}
+    <>
+      <nav>
+        <NavLink to="/">Home</NavLink>
+        <NavLink to="/about">About</NavLink>
+        <NavLink to="/dashboard">Dashboard</NavLink>
+      </nav>
+
       <main>
-        <Outlet />         {/* child route renders here */}
+        <Outlet />  {/* matched child route renders here */}
       </main>
-    </div>
+    </>
   );
 }
 
@@ -312,25 +248,20 @@ export default Layout;
 
 ### URL mapping:
 ```
-/            → Layout + Home
-/about       → Layout + About
-/dashboard   → Layout + Dashboard
-/dashboard/settings → Layout + Dashboard + Settings
+/            →  Layout + Home
+/about       →  Layout + About
+/dashboard   →  Layout + Dashboard
 ```
 
-### Index route:
-
-```jsx
-<Route index element={<Home />} />
-```
-
-An **index route** renders at the parent's path (no extra segment). It's the default child when no other child matches.
+> `<Route index>` is the default child — renders at the parent path `/` with no extra segment.
 
 ---
 
-## 10. Protected Routes (Auth Guard)
+## 8. Protected Routes (Auth Guard)
 
-Redirect unauthenticated users away from private routes.
+Redirect unauthenticated users before they see a private page.
+
+### Step 1 — Create ProtectedRoute component
 
 ```jsx
 // components/ProtectedRoute.jsx
@@ -338,21 +269,23 @@ import { Navigate, Outlet } from 'react-router-dom';
 
 function ProtectedRoute({ isAuthenticated }) {
   if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/login" replace />;  // redirect to login
   }
-  return <Outlet />;  // renders the child route if authenticated
+  return <Outlet />;  // allow access — render child route
 }
 
 export default ProtectedRoute;
 ```
 
+### Step 2 — Wrap private routes in App.jsx
+
 ```jsx
-// App.jsx
-import { useState } from 'react';
+import { useState }      from 'react';
 import { Routes, Route } from 'react-router-dom';
-import ProtectedRoute from './components/ProtectedRoute';
-import Dashboard from './pages/Dashboard';
-import Login     from './pages/Login';
+import Login             from './pages/Login';
+import Dashboard         from './pages/Dashboard';
+import Profile           from './pages/Profile';
+import ProtectedRoute    from './components/ProtectedRoute';
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -361,7 +294,7 @@ function App() {
     <Routes>
       <Route path="/login" element={<Login onLogin={() => setIsAuthenticated(true)} />} />
 
-      {/* All routes inside here are protected */}
+      {/* All routes below are protected */}
       <Route element={<ProtectedRoute isAuthenticated={isAuthenticated} />}>
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/profile"   element={<Profile />}   />
@@ -369,33 +302,64 @@ function App() {
     </Routes>
   );
 }
-```
 
-- `<Navigate to="/login" replace />` — redirects and replaces the history entry so the user can't click back to the protected page.
-- `<Outlet />` — renders the matched child route when access is granted.
+export default App;
+```
 
 ---
 
-## 11. Navigate Component — Declarative Redirect
-
-`<Navigate>` is the declarative version of `useNavigate` — use it in JSX when you want to redirect based on a condition.
+## 9. useLocation — Read Current URL
 
 ```jsx
-import { Navigate } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 
-function Home({ isLoggedIn }) {
-  if (isLoggedIn) {
-    return <Navigate to="/dashboard" replace />;
-  }
-  return <h1>Welcome! Please log in.</h1>;
+function MyComponent() {
+  const location = useLocation();
+
+  console.log(location.pathname);  // "/about"
+  console.log(location.search);   // "?tab=info"
+  console.log(location.state);    // data passed via navigate()
+
+  return <p>Current path: {location.pathname}</p>;
+}
+
+export default MyComponent;
+```
+
+### Pass state between routes:
+
+```jsx
+// Send — in a component that uses useNavigate
+import { useNavigate } from 'react-router-dom';
+
+function GoToProfile() {
+  const navigate = useNavigate();
+  return (
+    <button onClick={() => navigate('/profile', { state: { from: 'dashboard' } })}>
+      Go to Profile
+    </button>
+  );
 }
 ```
 
+```jsx
+// Receive — in the destination component
+import { useLocation } from 'react-router-dom';
+
+function Profile() {
+  const location = useLocation();
+  console.log(location.state?.from);  // "dashboard"
+  return <p>Profile Page</p>;
+}
+```
+
+> State is lost on page refresh — use only for temporary navigation context.
+
 ---
 
-## 12. useSearchParams — Query String Management
+## 10. useSearchParams — URL Query Strings
 
-`useSearchParams` works like `useState` but for URL query parameters.
+Works like `useState` but syncs with the URL.
 
 ```jsx
 import { useSearchParams } from 'react-router-dom';
@@ -404,58 +368,85 @@ function ProductList() {
   const [searchParams, setSearchParams] = useSearchParams();
 
   const category = searchParams.get('category') || 'all';
-  const page     = Number(searchParams.get('page')) || 1;
-
-  function handleCategoryChange(newCategory) {
-    setSearchParams({ category: newCategory, page: 1 });
-    // URL becomes: /products?category=shoes&page=1
-  }
 
   return (
     <div>
-      <button onClick={() => handleCategoryChange('shoes')}>Shoes</button>
-      <button onClick={() => handleCategoryChange('bags')}>Bags</button>
-      <p>Category: {category} | Page: {page}</p>
+      <button onClick={() => setSearchParams({ category: 'shoes' })}>Shoes</button>
+      <button onClick={() => setSearchParams({ category: 'bags'  })}>Bags</button>
+      <p>Showing: {category}</p>
+      {/* URL becomes: /products?category=shoes */}
     </div>
   );
 }
+
+export default ProductList;
 ```
 
 ---
 
-## 13. Full App Example — Putting It All Together
+## 11. Navigate Component — Redirect in JSX
+
+Use `<Navigate>` when you need to redirect based on a condition inside JSX (not from a function).
+
+```jsx
+import { Navigate } from 'react-router-dom';
+
+function Home({ isLoggedIn }) {
+  if (isLoggedIn) return <Navigate to="/dashboard" replace />;
+  return <h1>Please log in</h1>;
+}
+
+export default Home;
+```
+
+---
+
+## 12. Complete File Structure
 
 ```
 src/
-  main.jsx
-  App.jsx
-  layouts/
-    Layout.jsx
+  main.jsx              ← BrowserRouter lives here
+  App.jsx               ← all Routes defined here
+  Layout.jsx            ← shared navbar + <Outlet />
   pages/
     Home.jsx
     About.jsx
-    UserList.jsx
-    UserDetail.jsx
-    Login.jsx
     Dashboard.jsx
+    Profile.jsx
+    Login.jsx
     NotFound.jsx
   components/
     ProtectedRoute.jsx
 ```
 
+---
+
+## 13. v5 vs v6 — Key Differences
+
+| v5 | v6 |
+|---|---|
+| `<Switch>` | `<Routes>` |
+| `<Route component={X}>` | `<Route element={<X />}>` |
+| `exact` prop required | Exact by default ✅ |
+| `<Redirect>` | `<Navigate>` |
+| `useHistory()` | `useNavigate()` |
+| Nested routes in child components | Nested routes centralized in App ✅ |
+
+---
+
+## 14. Everything in One Place — Full App.jsx
+
 ```jsx
-// App.jsx
+import { useState }      from 'react';
 import { Routes, Route } from 'react-router-dom';
-import Layout         from './layouts/Layout';
-import Home           from './pages/Home';
-import About          from './pages/About';
-import UserList       from './pages/UserList';
-import UserDetail     from './pages/UserDetail';
-import Login          from './pages/Login';
-import Dashboard      from './pages/Dashboard';
-import NotFound       from './pages/NotFound';
-import ProtectedRoute from './components/ProtectedRoute';
-import { useState }   from 'react';
+import Layout            from './Layout';
+import Home              from './pages/Home';
+import About             from './pages/About';
+import Dashboard         from './pages/Dashboard';
+import Login             from './pages/Login';
+import UserDetail        from './pages/UserDetail';
+import NotFound          from './pages/NotFound';
+import ProtectedRoute    from './components/ProtectedRoute';
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -463,10 +454,9 @@ function App() {
   return (
     <Routes>
       <Route path="/" element={<Layout />}>
-        <Route index            element={<Home />}           />
-        <Route path="about"     element={<About />}          />
-        <Route path="users"     element={<UserList />}       />
-        <Route path="users/:id" element={<UserDetail />}     />
+        <Route index            element={<Home />}       />
+        <Route path="about"     element={<About />}      />
+        <Route path="users/:id" element={<UserDetail />} />
         <Route path="login"     element={<Login onLogin={() => setIsAuthenticated(true)} />} />
 
         <Route element={<ProtectedRoute isAuthenticated={isAuthenticated} />}>
@@ -478,128 +468,55 @@ function App() {
     </Routes>
   );
 }
-```
 
-```jsx
-// layouts/Layout.jsx
-import { Outlet }  from 'react-router-dom';
-import { NavLink } from 'react-router-dom';
-
-function Layout() {
-  return (
-    <>
-      <nav style={{ display: 'flex', gap: '1rem', padding: '1rem', background: '#eee' }}>
-        <NavLink to="/"          end>Home</NavLink>
-        <NavLink to="/about"        >About</NavLink>
-        <NavLink to="/users"        >Users</NavLink>
-        <NavLink to="/dashboard"    >Dashboard</NavLink>
-      </nav>
-      <main style={{ padding: '1rem' }}>
-        <Outlet />
-      </main>
-    </>
-  );
-}
-
-export default Layout;
-```
-
-```jsx
-// pages/UserDetail.jsx
-import { useParams, useNavigate } from 'react-router-dom';
-
-function UserDetail() {
-  const { id }    = useParams();
-  const navigate  = useNavigate();
-
-  return (
-    <div>
-      <h2>User #{id}</h2>
-      <button onClick={() => navigate(-1)}>← Back</button>
-    </div>
-  );
-}
-
-export default UserDetail;
+export default App;
 ```
 
 ---
 
-## 14. v5 vs v6 — Key Differences
+## 15. Interview Questions
 
-| Feature | v5 | v6 |
-|---|---|---|
-| Route rendering | `<Route component={X}>` or `render` prop | `<Route element={<X />}>` |
-| Wrapping routes | `<Switch>` | `<Routes>` |
-| Exact matching | `exact` prop required | Exact by default |
-| Nested routes | Defined inside child components | Defined in one place in `App` |
-| Redirect | `<Redirect>` | `<Navigate>` |
-| `useHistory` | `useHistory()` | `useNavigate()` |
-| Relative paths | Manual | Automatic in nested routes |
-
----
-
-## 15. React Router v6 — Summary
-
-| Hook / Component | What it does |
-|---|---|
-| `<BrowserRouter>` | Enables routing, wraps the app |
-| `<Routes>` | Container for all `Route` definitions |
-| `<Route path element>` | Maps a path to a component |
-| `<Link to>` | Navigation without page reload |
-| `<NavLink to>` | Link with active state styling |
-| `<Outlet />` | Renders matched child route in a layout |
-| `<Navigate to>` | Declarative redirect |
-| `useNavigate()` | Programmatic navigation |
-| `useParams()` | Read URL dynamic params (`:id`) |
-| `useLocation()` | Read current URL, pathname, state |
-| `useSearchParams()` | Read/write URL query parameters |
-
----
-
-## 16. Interview Questions
-
-**Q1. What is React Router and why is it needed in a React app?**
-> React Router is a client-side routing library that maps URLs to components without reloading the page. It's needed because React renders a single HTML file — React Router simulates multi-page navigation inside the browser, enabling bookmarkable URLs, browser back/forward, and deep linking.
+**Q1. What is React Router? Why is it needed?**
+> React renders a single HTML file. React Router maps URLs to components so the app behaves like a multi-page site — with bookmarkable URLs, browser back/forward, and instant navigation — all without server requests.
 
 **Q2. What is the difference between BrowserRouter and HashRouter?**
-> `BrowserRouter` uses the HTML5 History API — URLs look like `/about`. `HashRouter` uses the URL hash — URLs look like `/#/about`. `BrowserRouter` is standard for modern apps. `HashRouter` is a fallback for environments where the server can't handle deep links (static file hosts without config).
+> `BrowserRouter` uses the HTML5 History API — URLs look like `/about`. `HashRouter` uses the hash — URLs look like `/#/about`. Use `BrowserRouter` for modern apps. `HashRouter` is a fallback for static hosts that can't handle deep links.
 
-**Q3. How do you define routes in React Router v6?**
-> Wrap all routes in `<Routes>`, then add `<Route path="..." element={<Component />} />` for each path. The `element` prop takes a JSX element. `<Routes>` is required — it replaces v5's `<Switch>` and selects the best matching route.
+**Q3. What replaced `<Switch>` in v6?**
+> `<Routes>`. It also picks the best match automatically — no more `exact` prop needed.
 
 **Q4. What is the difference between Link and NavLink?**
-> Both render an anchor tag that navigates without a reload. `NavLink` additionally provides an `isActive` boolean in its `className` and `style` props, letting you add active styling to the currently matched navigation link.
+> Both navigate without a page reload. `NavLink` also provides an `isActive` boolean so you can style the currently active link — useful in navbars.
 
-**Q5. How do you read a URL parameter like /users/:id?**
-> Define the route with a colon: `<Route path="/users/:id" element={<UserDetail />} />`. Inside `UserDetail`, call `const { id } = useParams()` to read the value.
+**Q5. How do you read a URL param like `/users/:id`?**
+> Define the route as `<Route path="/users/:id" element={<UserDetail />} />` then call `const { id } = useParams()` inside the component.
 
-**Q6. What is useNavigate and when would you use it over Link?**
-> `useNavigate` returns a function for programmatic navigation — use it when you need to navigate as a result of logic, not a click (e.g., after form submission, after a successful API call, after a timer). `Link` is for UI navigation elements that users click directly.
+**Q6. When do you use useNavigate instead of Link?**
+> When navigation is triggered by logic — after a form submit, API call, or timer — not by a direct user click. `Link` is for visible clickable elements.
 
-**Q7. What is the Outlet component?**
-> `<Outlet />` is a placeholder in a parent layout component where the matched child route renders. It enables nested routing — the parent defines shared UI (navbar, sidebar) and `<Outlet />` is where the child page content appears.
+**Q7. What is `<Outlet />`?**
+> A placeholder inside a layout component where the matched child route renders. It's how nested routing works — the parent keeps the shared UI (navbar) while `<Outlet />` swaps the page content.
 
 **Q8. What is an index route?**
-> An index route renders at the parent's exact path with no extra URL segment. It's defined with `<Route index element={<Home />} />` and acts as the default child route when no other child matches.
+> `<Route index element={<Home />} />` — renders at the parent's exact path (e.g. `/`) with no extra segment. It's the default child when no other child matches.
 
-**Q9. How do you implement a protected route in React Router v6?**
-> Create a component that checks authentication and returns `<Navigate to="/login" replace />` if not authenticated, or `<Outlet />` if authenticated. Wrap protected routes inside this component in your `<Routes>` definition — no child route renders unless auth passes.
+**Q9. How do you build a protected route?**
+> Create a component that returns `<Navigate to="/login" replace />` if not authenticated, or `<Outlet />` if authenticated. Wrap private routes inside it with no `path` prop — it acts as a guard layer.
 
-**Q10. What is the difference between navigate('/path') and navigate('/path', { replace: true })?**
-> Without `replace`, the new route is pushed onto the browser history stack — the user can navigate back. With `replace: true`, the current entry is replaced — the user cannot go back to the previous page. Use `replace` for redirects after login or form submissions where going back would be confusing.
+**Q10. What is the difference between `navigate('/path')` and `navigate('/path', { replace: true })`?**
+> Without `replace`, the route is pushed to history — user can go back. With `replace: true`, the current entry is replaced — user can't go back. Use `replace` after login or logout.
 
-**Q11. How do you read query parameters in React Router v6?**
-> Use `useSearchParams()` which returns `[searchParams, setSearchParams]`. Read values with `searchParams.get('key')` and update them with `setSearchParams({ key: value })` — this updates the URL without a reload.
+**Q11. How do you read and update URL query params?**
+> Use `useSearchParams()` → `[searchParams, setSearchParams]`. Read with `searchParams.get('key')`, update with `setSearchParams({ key: value })`. The URL updates without a reload.
 
-**Q12. What are the major differences between React Router v5 and v6?**
-> v6 replaces `<Switch>` with `<Routes>`, uses `element={<Component />}` instead of `component={Component}`, matches routes exactly by default (no `exact` prop needed), uses `<Navigate>` instead of `<Redirect>`, and replaces `useHistory` with `useNavigate`. Nested routes are also now defined centrally in one place rather than inside child components.
+**Q12. How do you pass data between routes?**
+> `navigate('/path', { state: { key: value } })` then read with `useLocation().state` on the destination. Lost on refresh — for temporary context only.
 
-**Q13. How do you pass data between routes?**
-> Use `navigate('/path', { state: { key: value } })` to attach state to navigation. Read it with `useLocation().state` on the destination route. This data lives in browser history and is lost on refresh — use it for temporary navigation context, not persistent data.
+**Q13. What does `path="*"` do?**
+> Matches any URL that didn't match any other route. Used for 404 Not Found pages.
 
-**Q14. What does the path="*" route do?**
-> It's a wildcard that matches any URL not matched by any other route. Typically used to render a 404 Not Found page.
+**Q14. What are the main differences between v5 and v6?**
+> `<Switch>` → `<Routes>`, `component={}` → `element={}`, `exact` no longer needed, `<Redirect>` → `<Navigate>`, `useHistory` → `useNavigate`, and nested routes are now defined centrally in one file instead of scattered across child components.
 
 ---
 

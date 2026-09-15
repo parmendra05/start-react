@@ -1,589 +1,732 @@
-# React - Axios & API Integration
+# React - Fetch API, Axios & API Integration
 
 ---
 
-## 1. What is Axios?
+## 1. What is an API Call?
 
-Axios is a **promise-based HTTP client** for JavaScript. It works in both the browser and Node.js and is the most popular way to make API calls in React apps.
+When your React app needs data — like a list of users, posts, or products — it has to **ask a server** for that data. This is called making an **API call** (or HTTP request).
+
+```
+React App  →  sends a request  →  Server (API)
+React App  ←  receives data    ←  Server (API)
+```
+
+The data usually comes back as **JSON** — a simple text format that looks like a JavaScript object.
+
+There are a few ways to make API calls in React:
+1. **Fetch API** — built into the browser, no install needed
+2. **Axios** — a popular library, easier to use than fetch
+3. **Other options** — React Query, SWR (covered at the end)
+
+---
+
+## 2. What is the Fetch API?
+
+`fetch` is built into every modern browser. You don't need to install anything. It is the most basic way to make HTTP requests in JavaScript.
+
+### Simplest GET request:
+
+```js
+fetch('https://jsonplaceholder.typicode.com/posts')
+  .then(res => res.json())       // step 1: convert response to JSON
+  .then(data => console.log(data)) // step 2: use the data
+```
+
+> `fetch` does NOT automatically convert the response to JSON. You always have to call `.json()` on the response first. This is the most common beginner mistake.
+
+---
+
+## 3. Fetch API — Step by Step
+
+Here is exactly what happens when you call `fetch`:
+
+```
+Step 1: fetch(url)         → sends the request to the server
+Step 2: .then(res => ...)  → response arrives (but data is still not readable yet)
+Step 3: res.json()         → converts the raw response body into a JavaScript object
+Step 4: .then(data => ...) → now you can use the actual data
+```
+
+### Example — GET request with fetch:
+
+```js
+fetch('https://jsonplaceholder.typicode.com/users')
+  .then(res => {
+    console.log(res.status)  // 200 (HTTP status code)
+    return res.json()        // must call .json() to get the actual data
+  })
+  .then(data => {
+    console.log(data)        // array of users
+  })
+  .catch(err => {
+    console.log('Error:', err.message)
+  })
+```
+
+### Same example with async/await (easier to read):
+
+```js
+async function getUsers() {
+  try {
+    const res  = await fetch('https://jsonplaceholder.typicode.com/users')
+    const data = await res.json()   // always await .json() separately
+    console.log(data)
+  } catch (err) {
+    console.log('Error:', err.message)
+  }
+}
+```
+
+---
+
+## 4. Fetch API — Important Gotcha (Error Handling)
+
+This is something beginners often miss. `fetch` does **not** throw an error for HTTP errors like 404 or 500. It only throws if there is a **network failure** (no internet, server unreachable).
+
+```js
+// ❌ This will NOT go to catch even if server returns 404
+fetch('https://jsonplaceholder.typicode.com/users/99999')
+  .then(res => res.json())
+  .then(data => console.log(data))  // still runs even on 404!
+  .catch(err => console.log(err))   // only runs if there's no internet
+```
+
+### ✅ Correct way — always check `res.ok`:
+
+```js
+fetch('https://jsonplaceholder.typicode.com/users/99999')
+  .then(res => {
+    if (!res.ok) {
+      throw new Error('Request failed with status: ' + res.status)
+    }
+    return res.json()
+  })
+  .then(data => console.log(data))
+  .catch(err => console.log('Error:', err.message))
+```
+
+> `res.ok` is `true` when the status code is between 200–299. Always check it when using fetch.
+
+---
+
+## 5. Using Fetch with useEffect in React
+
+In React, you make API calls inside `useEffect` — because you want the data to load **after** the component appears on screen.
+
+### Basic pattern:
+
+```jsx
+import { useState, useEffect } from 'react'
+
+function UserList() {
+  const [users,   setUsers]   = useState([])   // store the data here
+  const [loading, setLoading] = useState(true) // show spinner while loading
+  const [error,   setError]   = useState(null) // store any error message
+
+  useEffect(() => {
+
+    // define async function inside useEffect
+    async function fetchUsers() {
+      try {
+        const res = await fetch('https://jsonplaceholder.typicode.com/users')
+
+        if (!res.ok) throw new Error('Failed to fetch users')
+
+        const data = await res.json()
+        setUsers(data)
+
+      } catch (err) {
+        setError(err.message)
+
+      } finally {
+        setLoading(false)  // always stop loading, whether success or error
+      }
+    }
+
+    fetchUsers()  // call the function
+
+  }, [])  // [] means run only once when the component first loads
+
+  if (loading) return <p>Loading...</p>
+  if (error)   return <p>Error: {error}</p>
+
+  return (
+    <ul>
+      {users.map(user => (
+        <li key={user.id}>{user.name} — {user.email}</li>
+      ))}
+    </ul>
+  )
+}
+
+export default UserList
+```
+
+> You cannot write `useEffect(async () => { ... })` — useEffect does not support async callbacks directly. Always define a separate async function inside and call it.
+
+---
+
+## 6. Fetch — POST, PUT, DELETE
+
+By default, `fetch` does a GET request. For other methods, you pass a second argument with options.
+
+### POST — Send data to the server:
+
+```js
+async function createPost() {
+  const res = await fetch('https://jsonplaceholder.typicode.com/posts', {
+    method: 'POST',                           // specify the method
+    headers: { 'Content-Type': 'application/json' }, // tell server you're sending JSON
+    body: JSON.stringify({                    // convert JS object to JSON string
+      username: 'john_doe',
+      email: 'john@example.com',
+      role: 'user'
+    })
+  })
+
+  const data = await res.json()
+  console.log(data)  // { id: 101, username: 'john_doe', email: 'john@example.com', ... }
+}
+```
+
+### PUT — Update existing data:
+
+```js
+const res = await fetch('https://jsonplaceholder.typicode.com/posts/1', {
+  method: 'PUT',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ username: 'john_doe', email: 'john_new@example.com' })
+})
+```
+
+### DELETE — Remove data:
+
+```js
+const res = await fetch('https://jsonplaceholder.typicode.com/posts/1', {
+  method: 'DELETE'
+})
+// no need to call .json() on DELETE — usually returns empty body
+```
+
+---
+
+## 7. Fetch — Full Example in a React Component
+
+```jsx
+import { useState, useEffect } from 'react'
+
+function Posts() {
+  const [posts,   setPosts]   = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error,   setError]   = useState(null)
+
+  // READ — fetch posts when component loads
+  useEffect(() => {
+    async function fetchPosts() {
+      try {
+        const res = await fetch('https://jsonplaceholder.typicode.com/posts?_limit=5')
+        if (!res.ok) throw new Error('Could not load posts')
+        const data = await res.json()
+        setPosts(data)
+      } catch (err) {
+        setError(err.message)
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchPosts()
+  }, [])
+
+  // DELETE — remove a post
+  async function handleDelete(id) {
+    await fetch(`https://jsonplaceholder.typicode.com/posts/${id}`, {
+      method: 'DELETE'
+    })
+    // remove from local state so UI updates immediately
+    setPosts(prev => prev.filter(post => post.id !== id))
+  }
+
+  if (loading) return <p>Loading posts...</p>
+  if (error)   return <p>Error: {error}</p>
+
+  return (
+    <ul>
+      {users.map(user => (
+        <li key={user.id}>
+          {user.username} — {user.email}
+          <button onClick={() => handleDelete(user.id)}>Delete</button>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+export default Posts
+```
+
+---
+
+## 8. What is Axios?
+
+Axios is a **library** that makes HTTP requests easier than the built-in `fetch`. You need to install it first.
 
 ```bash
 npm install axios
 ```
 
-### Axios vs Fetch — Why use Axios?
+The main advantages of Axios over fetch:
 
-| Feature | Fetch | Axios |
+| Feature | fetch (built-in) | axios (library) |
 |---|---|---|
-| Built into browser | ✅ Yes | ❌ No (install needed) |
-| Automatic JSON parsing | ❌ Manual `.json()` | ✅ Automatic |
-| Request/Response interceptors | ❌ No | ✅ Yes |
-| Automatic error on 4xx/5xx | ❌ No (must check `res.ok`) | ✅ Yes |
-| Request cancellation | Verbose (AbortController) | Cleaner (CancelToken / AbortController) |
-| Request timeout | Manual | Built-in `timeout` option |
-| Base URL config | Manual | Built-in `baseURL` |
-| Upload progress | Manual | Built-in |
+| Needs install | ❌ No | ✅ Yes |
+| Auto JSON parsing | ❌ You call `.json()` manually | ✅ Done automatically |
+| Error on 404/500 | ❌ You check `res.ok` manually | ✅ Throws automatically |
+| Request timeout | ❌ Manual setup | ✅ Built-in option |
+| Send headers easily | ❌ Verbose | ✅ Simple config |
+| Base URL config | ❌ Manual | ✅ Built-in `baseURL` |
+| Interceptors | ❌ Not available | ✅ Available |
 
 ---
 
-## 2. Basic Axios Requests
+## 9. Axios — Basic Syntax
 
 ```jsx
-import axios from 'axios';
+import axios from 'axios'
 
-// GET
-const response = await axios.get('https://api.example.com/users');
-console.log(response.data);  // parsed JSON automatically
+// GET — read data
+const res = await axios.get('https://jsonplaceholder.typicode.com/posts')
+console.log(res.data)  // the data is inside res.data (already parsed JSON)
 
-// POST
-const response = await axios.post('https://api.example.com/users', {
-  name: 'Ali',
-  email: 'ali@example.com',
-});
+// POST — send data
+const res = await axios.post('https://jsonplaceholder.typicode.com/users', {
+  username: 'john_doe',
+  email: 'john@example.com',
+  phone: '123-456-7890'
+})
+console.log(res.data)
 
-// PUT
-const response = await axios.put('https://api.example.com/users/1', {
-  name: 'Ali Updated',
-});
+// PUT — replace data
+const res = await axios.put('https://jsonplaceholder.typicode.com/users/1', {
+  username: 'john_updated',
+  email: 'john_updated@example.com',
+  phone: '999-999-9999'
+})
 
-// PATCH
-const response = await axios.patch('https://api.example.com/users/1', {
-  name: 'Ali Patched',
-});
+// PATCH — update part of data (only the fields you send will change)
+const res = await axios.patch('https://jsonplaceholder.typicode.com/users/1', {
+  email: 'newemail@example.com'   // only email is updated, name/phone stay the same
+})
 
-// DELETE
-const response = await axios.delete('https://api.example.com/users/1');
+// DELETE — remove data
+await axios.delete('https://jsonplaceholder.typicode.com/posts/1')
 ```
 
-### The response object:
-
-```jsx
-response.data       // the actual response body (auto-parsed JSON)
-response.status     // HTTP status code (200, 201, 404, etc.)
-response.statusText // "OK", "Not Found", etc.
-response.headers    // response headers
-response.config     // the original request config
-```
+> With Axios you never call `.json()`. The response data is already parsed and available at `res.data`.
 
 ---
 
-## 3. Axios in a React Component
-
-### GET request with useEffect:
+## 10. Axios with useEffect — GET Request
 
 ```jsx
-import { useState, useEffect } from 'react';
-import axios from 'axios';
+import { useState, useEffect } from 'react'
+import axios from 'axios'
 
 function UserList() {
-  const [users,   setUsers]   = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error,   setError]   = useState(null);
+  const [users,   setUsers]   = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error,   setError]   = useState(null)
 
   useEffect(() => {
-    axios.get('https://jsonplaceholder.typicode.com/users')
-      .then((res) => {
-        setUsers(res.data);
-        setLoading(false);
-      })
-      .catch((err) => {
-        setError(err.message);
-        setLoading(false);
-      });
-  }, []);
+    async function fetchUsers() {
+      try {
+        const res = await axios.get('https://jsonplaceholder.typicode.com/users')
+        setUsers(res.data)  // res.data is already the array — no .json() needed
+      } catch (err) {
+        setError(err.message)
+      } finally {
+        setLoading(false)
+      }
+    }
 
-  if (loading) return <p>Loading...</p>;
-  if (error)   return <p>Error: {error}</p>;
+    fetchUsers()
+  }, [])
+
+  if (loading) return <p>Loading...</p>
+  if (error)   return <p>Error: {error}</p>
 
   return (
     <ul>
-      {users.map((user) => (
+      {users.map(user => (
         <li key={user.id}>{user.name} — {user.email}</li>
       ))}
     </ul>
-  );
+  )
 }
-```
 
-### Using async/await (cleaner):
-
-```jsx
-useEffect(() => {
-  async function fetchUsers() {
-    try {
-      setLoading(true);
-      const res = await axios.get('https://jsonplaceholder.typicode.com/users');
-      setUsers(res.data);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  fetchUsers();
-}, []);
-```
-
-> You cannot make the `useEffect` callback itself `async`. Define an async function inside and call it immediately.
-
----
-
-## 4. Axios Instance — Centralized Config
-
-Instead of repeating the base URL and headers on every request, create a reusable **Axios instance**.
-
-```jsx
-// api/axiosInstance.js
-import axios from 'axios';
-
-const api = axios.create({
-  baseURL: 'https://jsonplaceholder.typicode.com',
-  timeout: 10000,  // 10 seconds
-  headers: {
-    'Content-Type': 'application/json',
-  },
-});
-
-export default api;
-```
-
-```jsx
-// Usage — no need to repeat the base URL
-import api from './api/axiosInstance';
-
-const res = await api.get('/users');         // GET /users
-const res = await api.get('/users/1');       // GET /users/1
-const res = await api.post('/posts', data);  // POST /posts
+export default UserList
 ```
 
 ---
 
-## 5. Axios Interceptors
-
-Interceptors run before every request is sent or after every response is received. Common uses: attach auth tokens, handle global errors, log requests.
-
-### Request interceptor — attach auth token:
+## 11. Axios — POST Example (Submit a Form)
 
 ```jsx
-// api/axiosInstance.js
-api.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;  // must return config
-  },
-  (error) => Promise.reject(error)
-);
-```
+import { useState } from 'react'
+import axios from 'axios'
 
-### Response interceptor — handle 401 globally:
-
-```jsx
-api.interceptors.response.use(
-  (response) => response,  // pass through successful responses
-  (error) => {
-    if (error.response?.status === 401) {
-      // token expired — redirect to login
-      localStorage.removeItem('token');
-      window.location.href = '/login';
-    }
-    return Promise.reject(error);  // still reject so components can catch it
-  }
-);
-```
-
----
-
-## 6. Error Handling
-
-Axios throws an error for any response with status 4xx or 5xx. The error object has a useful structure.
-
-```jsx
-try {
-  const res = await api.get('/users/999');
-} catch (error) {
-  if (error.response) {
-    // Server responded with an error status
-    console.log(error.response.status);   // 404
-    console.log(error.response.data);     // { message: 'Not found' }
-  } else if (error.request) {
-    // Request was made but no response received (network error)
-    console.log('Network error — no response received');
-  } else {
-    // Something else went wrong (config error, etc.)
-    console.log('Error:', error.message);
-  }
-}
-```
-
-### Error structure:
-
-```
-error.response   → server responded (4xx, 5xx) — check .status and .data
-error.request    → request sent but no response (offline, timeout, CORS)
-error.message    → generic message string
-error.config     → original request configuration
-```
-
----
-
-## 7. POST, PUT, PATCH, DELETE with React
-
-### POST — Create a resource:
-
-```jsx
-import { useState } from 'react';
-import api from './api/axiosInstance';
-
-function CreatePost() {
-  const [title,   setTitle]   = useState('');
-  const [loading, setLoading] = useState(false);
-  const [result,  setResult]  = useState(null);
+function CreateUser() {
+  const [username, setUsername] = useState('')
+  const [email,    setEmail]    = useState('')
+  const [phone,    setPhone]    = useState('')
+  const [loading,  setLoading]  = useState(false)
+  const [result,   setResult]   = useState(null)
 
   async function handleSubmit(e) {
-    e.preventDefault();
-    setLoading(true);
+    e.preventDefault()
+    setLoading(true)
+
     try {
-      const res = await api.post('/posts', { title, userId: 1 });
-      setResult(res.data);
+      // send the form data to the server
+      const res = await axios.post('https://jsonplaceholder.typicode.com/users', {
+        username: username,
+        email: email,
+        phone: phone
+      })
+      setResult(res.data)  // server returns the created object with an id
     } catch (err) {
-      console.error(err.message);
+      console.error('Failed to create user:', err.message)
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
   }
 
   return (
     <form onSubmit={handleSubmit}>
-      <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Title" />
+      <input value={username} onChange={e => setUsername(e.target.value)} placeholder="Username" />
+      <input value={email}    onChange={e => setEmail(e.target.value)}    placeholder="Email" />
+      <input value={phone}    onChange={e => setPhone(e.target.value)}    placeholder="Phone" />
       <button type="submit" disabled={loading}>
-        {loading ? 'Creating...' : 'Create Post'}
+        {loading ? 'Saving...' : 'Create User'}
       </button>
-      {result && <p>Created: {result.title} (id: {result.id})</p>}
+
+      {result && <p>✅ Created user with ID: {result.id}</p>}
     </form>
-  );
+  )
 }
+
+export default CreateUser
 ```
 
-### DELETE — Remove a resource:
+---
+
+## 12. Axios Instance — Avoid Repeating the Base URL
+
+When you call the same API many times, you don't want to type the full URL every time. Create an **Axios instance** once with the base URL, and reuse it everywhere.
 
 ```jsx
-async function handleDelete(id) {
-  try {
-    await api.delete(`/posts/${id}`);
-    setPosts((prev) => prev.filter((post) => post.id !== id));
-  } catch (err) {
-    console.error('Delete failed:', err.message);
+// src/api/axiosInstance.js
+import axios from 'axios'
+
+const api = axios.create({
+  baseURL: 'https://jsonplaceholder.typicode.com', // base URL for all requests
+  timeout: 10000,  // cancel request if it takes more than 10 seconds
+})
+
+export default api
+```
+
+```jsx
+// Now in any component — just use the short path
+import api from './api/axiosInstance'
+
+const res = await api.get('/users')      // → https://jsonplaceholder.typicode.com/users
+const res = await api.get('/users/1')    // → https://jsonplaceholder.typicode.com/users/1
+const res = await api.post('/posts', {}) // → https://jsonplaceholder.typicode.com/posts
+```
+
+> Think of the Axios instance like a "preset" for your requests — set it up once, use it everywhere.
+
+---
+
+## 13. Axios — Error Handling
+
+Axios automatically throws an error for any 4xx or 5xx response. The error object has three useful properties:
+
+```jsx
+try {
+  const res = await api.get('/users/99999')
+} catch (err) {
+
+  if (err.response) {
+    // Server replied but with an error (404, 500, etc.)
+    console.log(err.response.status)  // 404
+    console.log(err.response.data)    // error message from server
+  }
+  else if (err.request) {
+    // Request was sent but no reply came back (no internet, server down)
+    console.log('No response from server')
+  }
+  else {
+    // Something went wrong before the request was sent
+    console.log('Error:', err.message)
   }
 }
 ```
 
 ---
 
-## 8. Passing Query Parameters
+## 14. Axios — Full CRUD Example
 
 ```jsx
-// Option 1 — inline in the URL
-const res = await api.get('/posts?userId=1&_limit=5');
+import { useState, useEffect } from 'react'
+import api from './api/axiosInstance'
 
-// Option 2 — params object (recommended — Axios encodes it for you)
-const res = await api.get('/posts', {
-  params: {
-    userId: 1,
-    _limit: 5,
-  },
-});
-// Both produce: GET /posts?userId=1&_limit=5
-```
-
----
-
-## 9. Sending Headers
-
-```jsx
-// Per-request headers
-const res = await api.get('/protected', {
-  headers: {
-    Authorization: `Bearer ${token}`,
-    'X-Custom-Header': 'value',
-  },
-});
-
-// Already set on the instance — no need to repeat:
-api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-```
-
----
-
-## 10. Cancelling Requests — AbortController
-
-Cancel an in-flight request when the component unmounts or the user navigates away — prevents state updates on unmounted components.
-
-```jsx
-import { useState, useEffect } from 'react';
-import api from './api/axiosInstance';
-
-function UserDetail({ userId }) {
-  const [user,    setUser]    = useState(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const controller = new AbortController();  // create controller
-
-    async function fetchUser() {
-      try {
-        const res = await api.get(`/users/${userId}`, {
-          signal: controller.signal,  // attach to request
-        });
-        setUser(res.data);
-      } catch (err) {
-        if (axios.isCancel(err) || err.name === 'CanceledError') return; // ignore cancel
-        console.error(err.message);
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    fetchUser();
-
-    return () => controller.abort();  // cancel on unmount or userId change
-  }, [userId]);
-
-  if (loading) return <p>Loading...</p>;
-  return <p>{user?.name}</p>;
-}
-```
-
----
-
-## 11. Custom useFetch Hook with Axios
-
-Extract the fetch logic into a reusable hook.
-
-```jsx
-// hooks/useAxios.js
-import { useState, useEffect } from 'react';
-import api from '../api/axiosInstance';
-import axios from 'axios';
-
-function useAxios(url, params = {}) {
-  const [data,    setData]    = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error,   setError]   = useState(null);
-
-  useEffect(() => {
-    const controller = new AbortController();
-
-    async function fetchData() {
-      setLoading(true);
-      setError(null);
-      try {
-        const res = await api.get(url, { params, signal: controller.signal });
-        setData(res.data);
-      } catch (err) {
-        if (err.name === 'CanceledError') return;
-        setError(err.response?.data?.message || err.message);
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    fetchData();
-    return () => controller.abort();
-  }, [url]);
-
-  return { data, loading, error };
-}
-
-export default useAxios;
-```
-
-```jsx
-// Usage in any component
-import useAxios from './hooks/useAxios';
-
-function PostList() {
-  const { data: posts, loading, error } = useAxios('/posts');
-
-  if (loading) return <p>Loading...</p>;
-  if (error)   return <p>Error: {error}</p>;
-
-  return (
-    <ul>
-      {posts.map((post) => <li key={post.id}>{post.title}</li>)}
-    </ul>
-  );
-}
-```
-
----
-
-## 12. Full CRUD Example
-
-```jsx
-// pages/Posts.jsx
-import { useState, useEffect } from 'react';
-import api from '../api/axiosInstance';
-
-function Posts() {
-  const [posts,    setPosts]    = useState([]);
-  const [title,    setTitle]    = useState('');
-  const [editId,   setEditId]   = useState(null);
-  const [editText, setEditText] = useState('');
-  const [loading,  setLoading]  = useState(true);
+function Users() {
+  const [users,       setUsers]       = useState([])
+  const [username,    setUsername]    = useState('')
+  const [editId,      setEditId]      = useState(null)
+  const [editEmail,   setEditEmail]   = useState('')
+  const [loading,     setLoading]     = useState(true)
 
   // READ
   useEffect(() => {
-    api.get('/posts', { params: { _limit: 5 } })
-      .then((res) => { setPosts(res.data); setLoading(false); })
-      .catch(() => setLoading(false));
-  }, []);
+    async function load() {
+      const res = await api.get('/users')
+      setUsers(res.data)
+      setLoading(false)
+    }
+    load()
+  }, [])
 
   // CREATE
   async function handleCreate(e) {
-    e.preventDefault();
-    if (!title.trim()) return;
-    const res = await api.post('/posts', { title, userId: 1 });
-    setPosts((prev) => [res.data, ...prev]);
-    setTitle('');
+    e.preventDefault()
+    if (!username.trim()) return
+    const res = await api.post('/users', { username, email: `${username}@example.com` })
+    setUsers(prev => [res.data, ...prev])
+    setUsername('')
   }
 
   // UPDATE
   async function handleUpdate(id) {
-    const res = await api.put(`/posts/${id}`, { title: editText, userId: 1 });
-    setPosts((prev) => prev.map((p) => (p.id === id ? res.data : p)));
-    setEditId(null);
+    const res = await api.put(`/users/${id}`, { email: editEmail })
+    setUsers(prev => prev.map(u => u.id === id ? { ...u, email: editEmail } : u))
+    setEditId(null)
   }
 
   // DELETE
   async function handleDelete(id) {
-    await api.delete(`/posts/${id}`);
-    setPosts((prev) => prev.filter((p) => p.id !== id));
+    await api.delete(`/users/${id}`)
+    setUsers(prev => prev.filter(u => u.id !== id))
   }
 
-  if (loading) return <p>Loading...</p>;
+  if (loading) return <p>Loading...</p>
 
   return (
     <div>
-      {/* Create */}
+      {/* Create form */}
       <form onSubmit={handleCreate}>
-        <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="New post title" />
-        <button type="submit">Add</button>
+        <input value={username} onChange={e => setUsername(e.target.value)} placeholder="New username" />
+        <button type="submit">Add User</button>
       </form>
 
-      {/* List */}
+      {/* User list */}
       <ul>
-        {posts.map((post) => (
-          <li key={post.id}>
-            {editId === post.id ? (
+        {users.map(user => (
+          <li key={user.id}>
+            {editId === user.id ? (
               <>
-                <input value={editText} onChange={(e) => setEditText(e.target.value)} />
-                <button onClick={() => handleUpdate(post.id)}>Save</button>
+                <input value={editEmail} onChange={e => setEditEmail(e.target.value)} placeholder="New email" />
+                <button onClick={() => handleUpdate(user.id)}>Save</button>
                 <button onClick={() => setEditId(null)}>Cancel</button>
               </>
             ) : (
               <>
-                <span>{post.title}</span>
-                <button onClick={() => { setEditId(post.id); setEditText(post.title); }}>Edit</button>
-                <button onClick={() => handleDelete(post.id)}>Delete</button>
+                <span>{user.name} — {user.email}</span>
+                <button onClick={() => { setEditId(user.id); setEditEmail(user.email) }}>Edit</button>
+                <button onClick={() => handleDelete(user.id)}>Delete</button>
               </>
             )}
           </li>
         ))}
       </ul>
     </div>
-  );
+  )
 }
 
-export default Posts;
+export default Users
 ```
 
 ---
 
-## 13. Environment Variables for API URLs
+## 15. Other Options to Fetch APIs
 
-Never hardcode API base URLs. Use environment variables instead.
+Fetch and Axios are great, but there are even more powerful tools built specifically for React. Here's an overview:
+
+---
+
+### Option 3 — React Query (TanStack Query)
+
+React Query is the most popular data-fetching library for React. It handles loading, caching, refetching, and error states automatically — things you have to do manually with fetch/axios.
 
 ```bash
-# .env
-VITE_API_BASE_URL=https://api.example.com
+npm install @tanstack/react-query
 ```
 
 ```jsx
-// api/axiosInstance.js
-const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL,
-});
+import { useQuery } from '@tanstack/react-query'
+import axios from 'axios'
+
+function UserList() {
+  // useQuery handles loading, error, and data automatically
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ['users'],  // unique key for caching
+    queryFn: () => axios.get('https://jsonplaceholder.typicode.com/users').then(res => res.data)
+  })
+
+  if (isLoading) return <p>Loading...</p>
+  if (isError)   return <p>Something went wrong</p>
+
+  return (
+    <ul>
+      {data.map(user => <li key={user.id}>{user.name}</li>)}
+    </ul>
+  )
+}
 ```
 
-- In Vite, all env variables must be prefixed with `VITE_` to be accessible in the browser.
-- Access them via `import.meta.env.VITE_KEY`.
-- Never commit `.env` files containing secrets — add them to `.gitignore`.
+**When to use:** Medium to large apps where you need caching, background refetching, and pagination without writing boilerplate.
 
 ---
 
-## 14. Axios & API Integration — Summary
+### Option 4 — SWR (by Vercel)
 
-| Concept | Detail |
+SWR is a lightweight alternative to React Query. The name stands for **Stale While Revalidate** — it shows cached (old) data immediately, then fetches fresh data in the background.
+
+```bash
+npm install swr
+```
+
+```jsx
+import useSWR from 'swr'
+
+// fetcher is just a function that calls fetch and returns the data
+const fetcher = url => fetch(url).then(res => res.json())
+
+function UserList() {
+  const { data, error, isLoading } = useSWR(
+    'https://jsonplaceholder.typicode.com/users',
+    fetcher
+  )
+
+  if (isLoading) return <p>Loading...</p>
+  if (error)     return <p>Error loading users</p>
+
+  return (
+    <ul>
+      {data.map(user => <li key={user.id}>{user.name}</li>)}
+    </ul>
+  )
+}
+```
+
+**When to use:** Small to medium apps where you want simple data fetching with caching but don't need the full power of React Query.
+
+---
+
+### Quick Comparison — All Options
+
+| | fetch | axios | React Query | SWR |
+|---|---|---|---|---|
+| Install needed | ❌ No | ✅ Yes | ✅ Yes | ✅ Yes |
+| Auto JSON parse | ❌ No | ✅ Yes | depends on fetcher | depends on fetcher |
+| Caching | ❌ No | ❌ No | ✅ Yes | ✅ Yes |
+| Auto refetch | ❌ No | ❌ No | ✅ Yes | ✅ Yes |
+| Loading/error state | Manual | Manual | ✅ Automatic | ✅ Automatic |
+| Best for | Learning basics | Most projects | Large apps | Simple caching |
+
+---
+
+## 16. fetch vs Axios — Side by Side
+
+Same GET request written both ways so you can see the difference clearly:
+
+```jsx
+// ── Using fetch ──────────────────────────────────────
+useEffect(() => {
+  fetch('https://jsonplaceholder.typicode.com/posts/1')
+    .then(res => {
+      if (!res.ok) throw new Error('Failed')  // must check manually
+      return res.json()                        // must call .json()
+    })
+    .then(data => setPost(data))
+    .catch(err => setError(err.message))
+}, [])
+
+
+// ── Using axios ──────────────────────────────────────
+useEffect(() => {
+  axios.get('https://jsonplaceholder.typicode.com/posts/1')
+    .then(res => setPost(res.data))  // res.data is already parsed
+    .catch(err => setError(err.message))  // auto throws on 404/500
+}, [])
+```
+
+Axios is shorter and handles errors more reliably — that's why most developers prefer it.
+
+---
+
+## 17. Summary
+
+| Concept | Key point |
 |---|---|
-| Install | `npm install axios` |
-| Basic GET | `axios.get(url).then(res => res.data)` |
-| Auto JSON | `res.data` is already parsed — no `.json()` needed |
-| Axios instance | `axios.create({ baseURL, timeout, headers })` |
-| Interceptors | Attach tokens, handle 401 globally |
-| Error handling | `error.response` (server), `error.request` (network) |
-| Query params | Pass as `{ params: { key: value } }` |
-| Cancel request | `AbortController` + `signal` + `controller.abort()` in cleanup |
-| Custom hook | `useAxios(url)` → `{ data, loading, error }` |
-| Env variables | `VITE_API_BASE_URL` via `import.meta.env` |
+| `fetch` | Built-in, always need `.json()`, no auto error on 404/500, check `res.ok` |
+| `axios` | Install needed, auto JSON, auto error on 4xx/5xx, cleaner syntax |
+| `useEffect + fetch/axios` | Make API calls after component loads, use `[]` to run once |
+| Axios instance | `axios.create({ baseURL })` — avoids repeating the URL |
+| Error handling | `err.response` (server error), `err.request` (no response), `err.message` |
+| React Query | Best for large apps — handles caching, loading, refetching automatically |
+| SWR | Lightweight caching — simpler than React Query |
 
 ---
 
-## 15. Interview Questions
+## 18. Interview Questions
 
-**Q1. What is Axios and why use it over the native fetch API?**
-> Axios is a promise-based HTTP client. Key advantages over `fetch`: automatic JSON parsing (no `.res.json()` call), automatic errors thrown for 4xx/5xx responses (fetch resolves them as success), request/response interceptors for global token injection or error handling, built-in timeout support, and a cleaner API for query params and headers.
+**Q1. What is the Fetch API? Is it built into React?**
+> `fetch` is a built-in browser API for making HTTP requests — it's part of JavaScript itself, not React. You don't need to install anything. You just call `fetch(url)` and handle the Promise it returns.
 
-**Q2. How do you make a GET request with Axios in a React component?**
-> Call `axios.get(url)` inside a `useEffect`. Since you can't make the effect callback async directly, define an async function inside and call it immediately. Use `try/catch` with `finally` to manage loading and error state.
+**Q2. Why do you need to call `.json()` on a fetch response?**
+> `fetch` returns a Response object, not the actual data. The response body is a stream that hasn't been read yet. Calling `.json()` reads the stream and parses it into a JavaScript object. It also returns a Promise, so you need to `await` it or chain another `.then()`.
 
-**Q3. Why can't you make the useEffect callback itself async?**
-> `useEffect` expects its callback to return either nothing or a cleanup function. An `async` function always returns a Promise — React doesn't know how to use a Promise as a cleanup function. The solution is to declare an async function inside the effect and invoke it immediately.
+**Q3. Why doesn't fetch throw an error on a 404 response?**
+> `fetch` only rejects (throws) on network failures — like no internet or the server being unreachable. A 404 or 500 response is still a valid HTTP response, so fetch considers it a success. You must check `res.ok` (or `res.status`) manually and throw your own error if needed.
 
-**Q4. What is an Axios instance and why create one?**
-> An Axios instance is a pre-configured copy of Axios created with `axios.create({ baseURL, timeout, headers })`. It avoids repeating the base URL and common headers on every call. All requests made through the instance automatically inherit its configuration.
+**Q4. Why do you put API calls inside useEffect?**
+> Because you want the data to load after the component renders. Putting it outside would run during every render. `useEffect` with an empty `[]` dependency array runs once after the first render — the right time to fetch initial data.
 
-**Q5. What are Axios interceptors? Give a real use case.**
-> Interceptors are functions that run before every request is sent (request interceptor) or after every response is received (response interceptor). A common use case: in the request interceptor, read the auth token from localStorage and attach it as an `Authorization` header automatically — so no component needs to do it manually.
+**Q5. Why can't you make the useEffect callback async?**
+> `useEffect` must return either nothing or a cleanup function. An `async` function always returns a Promise, not a cleanup function — React doesn't know what to do with it. The fix is to define a separate async function inside the effect and call it immediately.
 
-**Q6. How does Axios handle HTTP errors differently from fetch?**
-> With `fetch`, a 404 or 500 response is still a resolved Promise — you have to check `response.ok` manually. Axios automatically rejects the Promise for any response with status 4xx or 5xx, so your `catch` block handles server errors as well as network errors.
+**Q6. What is Axios and how is it different from fetch?**
+> Axios is a third-party HTTP library. Key differences: it automatically parses JSON (no `.json()` call), it automatically throws errors for 4xx/5xx responses (no `res.ok` check), it supports request/response interceptors, and it has a built-in timeout option. Fetch has none of these out of the box.
 
-**Q7. What are the three cases in an Axios error object?**
-> `error.response` — the server responded with an error status (4xx, 5xx); contains `.status` and `.data`. `error.request` — the request was sent but no response was received (network down, timeout, CORS). Neither property set — something went wrong before the request was sent (configuration error).
+**Q7. What is an Axios instance and why would you create one?**
+> An Axios instance is a custom copy of Axios with pre-set configuration like `baseURL`, `timeout`, or default headers. You create it with `axios.create({...})`. It means you only write the base URL once — every request through the instance automatically uses it.
 
-**Q8. How do you pass query parameters with Axios?**
-> Pass them as a `params` object in the config: `axios.get('/posts', { params: { userId: 1, _limit: 5 } })`. Axios encodes and appends them to the URL automatically. This is cleaner than building the query string manually.
+**Q8. What are the three types of Axios errors?**
+> `err.response` — server responded but with an error status (4xx, 5xx). `err.request` — request was sent but no response came back (network down, timeout). Neither — something went wrong before the request was even sent (bad config, wrong URL format).
 
-**Q9. How do you cancel an Axios request and why is it important?**
-> Use `AbortController`: create one before the request, pass `signal: controller.signal` in the config, and call `controller.abort()` in the `useEffect` cleanup function. This prevents state updates on unmounted components — without it, if the component unmounts before the request finishes, calling `setState` would throw a React warning.
+**Q9. What is React Query and when would you use it?**
+> React Query is a data-fetching library that automatically handles caching, loading state, error state, background refetching, and pagination. Use it when your app has many API calls and you don't want to write the same loading/error/state logic in every component.
 
-**Q10. How do you attach an auth token to every Axios request?**
-> Two ways: (1) Set it on the instance's default headers: `api.defaults.headers.common['Authorization'] = 'Bearer token'`. (2) Use a request interceptor that reads the token from storage and attaches it before each request — better because it always reads the latest token.
+**Q10. What is the difference between React Query and SWR?**
+> Both handle caching and background refetching. React Query is more feature-rich — better for complex apps with mutations, pagination, and optimistic updates. SWR is lighter and simpler — better for apps that mainly need GET requests with caching.
 
-**Q11. How do you handle environment-specific API base URLs in a Vite + React project?**
-> Define the URL in a `.env` file as `VITE_API_BASE_URL=https://api.example.com`. In the Axios instance, read it with `import.meta.env.VITE_API_BASE_URL`. Vite only exposes variables prefixed with `VITE_` to the browser bundle. Never hardcode base URLs in source files.
+**Q11. What is `res.ok` in fetch?**
+> `res.ok` is a boolean that is `true` when the HTTP status code is between 200 and 299 (success). If it is `false`, it means the server returned an error like 404 or 500. You should always check `res.ok` before calling `res.json()` when using fetch.
 
-**Q12. What is the pattern for a reusable data-fetching hook using Axios?**
-> Create a `useAxios(url)` custom hook that maintains `data`, `loading`, and `error` state. Inside `useEffect`, create an `AbortController`, call `api.get(url, { signal })`, update state on success or error, and return the controller abort as cleanup. The hook returns `{ data, loading, error }` — any component can use it without repeating fetch logic.
-
-**Q13. What is the difference between PUT and PATCH?**
-> `PUT` replaces the entire resource with the new data sent. `PATCH` applies a partial update — only the fields sent are changed, the rest remain. Use `PATCH` when updating a single field; use `PUT` when replacing the whole object.
-
-**Q14. How do you optimistically update the UI after a DELETE request?**
-> Remove the item from state immediately before or after the request resolves — don't wait for a refetch. On success, the UI is already updated. If the request fails, restore the previous state in the `catch` block: `setPosts((prev) => prev.filter((p) => p.id !== id))` inside the success path, with a rollback in catch.
+**Q12. What does `params` do in an Axios request?**
+> It lets you pass query parameters as a JavaScript object. Axios automatically encodes them and appends them to the URL. For example `axios.get('/users', { params: { role: 'admin' } })` becomes `/users?role=admin`. This is cleaner than building the query string manually.
 
 ---
 

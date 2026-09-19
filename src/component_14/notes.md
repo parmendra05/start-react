@@ -980,7 +980,7 @@ export default Modal
 | **Provider Pattern** | Share data without prop drilling | Zustand (for complex apps) |
 | **Container/Presentational** | Separate logic from UI | Custom Hook + dumb component |
 | **forwardRef** | Pass ref into custom component | Still required |
-| **Error Boundary** | Catch render errors gracefully | Still required (class only) |
+| **Portals** | Render component outside its parent DOM node | Still required |
 
 ---
 
@@ -997,6 +997,7 @@ Provider       →  createContext + Provider + custom hook = clean global data s
 Container      →  smart component handles logic, dumb component handles UI
 forwardRef     →  forward ref from parent through to child DOM element
 Error Boundary →  catch render errors, show fallback UI (class component)
+Portals        →  render a component into a different DOM node (modals, tooltips)
 ```
 
 ---
@@ -1038,6 +1039,15 @@ Error Boundary →  catch render errors, show fallback UI (class component)
 
 **Q12. Where should you place Error Boundaries in your app?**
 > Wrap each major section independently — routes, the dashboard, the sidebar, a widget. If one section crashes, only that section shows the error — the rest of the app stays functional. Don't put one single Error Boundary at the very top wrapping everything, because then a crash in any small component shows a full-page error.
+
+**Q13. What is a React Portal?**
+> A Portal lets you render a component's output into a different DOM node than its parent. You use `createPortal(children, domNode)` from `react-dom`. Even though the component renders in a different DOM node, it still behaves like a normal React child — events bubble through the React tree, context works, and state is fully shared.
+
+**Q14. Why do you need Portals for modals?**
+> Modals need to appear above all other content on the page, which requires a high `z-index` and `position: fixed`. If the modal is nested deep inside a component that has `overflow: hidden` or a stacking context, the modal gets clipped or hidden. Portals move the modal's DOM output to a top-level node (like `#modal-root`) so it's never affected by its parent's CSS.
+
+**Q15. Does a Portal break React event bubbling?**
+> No. Even though a portal renders in a different DOM node, React event bubbling follows the **React component tree** — not the real DOM tree. So a click inside a modal portal still bubbles up through the React parent components as expected. This is one of the key advantages of portals over manually appending DOM elements.
 
 ---
 

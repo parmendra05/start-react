@@ -23,6 +23,7 @@ Patterns covered in this section:
   7. Container / Presentational Pattern
   8. forwardRef
   9. Error Boundaries
+ 10. Portals
 ```
 
 ---
@@ -774,7 +775,199 @@ function App() {
 
 ---
 
-## 11. Patterns Comparison — When to Use What
+## 11. Portals — Render Outside the Parent DOM Node
+
+Normally, when React renders a component, it appears **inside its parent element** in the DOM. But sometimes you need a component to **visually break out** of its parent — for example, a modal, tooltip, or dropdown that needs to appear above everything else on the page.
+
+This is exactly what **Portals** solve.
+
+```
+Without Portal:
+  <div id="root">
+    <App>
+      <Dashboard>
+        <Modal />   ← stuck inside Dashboard's DOM node
+                    ← gets clipped by overflow:hidden or z-index issues
+      </Dashboard>
+    </App>
+  </div>
+
+With Portal:
+  <div id="root">
+    <App>
+      <Dashboard>   ← Modal is logically here in React tree
+      </Dashboard>
+    </App>
+  </div>
+  <div id="modal-root">
+    <Modal />       ← but physically renders here — outside #root entirely ✅
+  </div>
+```
+
+Even though the Modal renders in a different DOM node, it still behaves like a normal React child — events bubble up through the React tree, context works, and state is shared normally.
+
+### Step 1 — Add a portal target in `index.html`
+
+```html
+<!-- index.html -->
+<body>
+  <div id="root"></div>
+  <div id="modal-root"></div>   <!-- portal target -->
+</body>
+```
+
+### Step 2 — Create a Portal component
+
+```jsx
+// components/Portal.jsx
+import { createPortal } from 'react-dom'
+
+function Portal({ children }) {
+  const portalRoot = document.getElementById('modal-root')
+  return createPortal(children, portalRoot)
+}
+
+export default Portal
+```
+
+### Step 3 — Use it to build a Modal
+
+```jsx
+// components/Modal.jsx
+import { createPortal } from 'react-dom'
+
+function Modal({ isOpen, onClose, title, children }) {
+  if (!isOpen) return null  // don't render anything if closed
+
+  return createPortal(
+    // this JSX renders inside #modal-root, not inside the parent component
+    <div style={{
+      position:        'fixed',
+      inset:           0,                        // top/right/bottom/left: 0
+      backgroundColor: 'rgba(0, 0, 0, 0.5)',    // dark overlay
+      display:         'flex',
+      alignItems:      'center',
+      justifyContent:  'center',
+      zIndex:          1000,
+    }}>
+      {/* Modal box */}
+      <div style={{
+        background:   'white',
+        borderRadius: '8px',
+        padding:      '24px',
+        minWidth:     '400px',
+        maxWidth:     '90vw',
+      }}>
+        {/* Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
+          <h2 style={{ margin: 0 }}>{title}</h2>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer' }}>
+            ✕
+          </button>
+        </div>
+
+        {/* Content */}
+        <div>{children}</div>
+      </div>
+    </div>,
+
+    document.getElementById('modal-root')  // render target
+  )
+}
+
+export default Modal
+```
+
+```jsx
+// Usage in any component — no matter how deeply nested
+import { useState } from 'react'
+import Modal        from './components/Modal'
+
+function UserCard({ name, email }) {
+  const [showModal, setShowModal] = useState(false)
+
+  return (
+    <div>
+      <p>{name}</p>
+      <button onClick={() => setShowModal(true)}>View Details</button>
+
+      {/* Modal renders in #modal-root — not inside UserCard's DOM node */}
+      <Modal
+        isOpen={showModal}
+        onClose={() => setShowModal(false)}
+        title="User Details"
+      >
+        <p><strong>Name:</strong>  {name}</p>
+        <p><strong>Email:</strong> {email}</p>
+        <button onClick={() => setShowModal(false)}>Close</button>
+      </Modal>
+    </div>
+  )
+}
+
+export default UserCard
+```
+
+### Common use cases for Portals:
+- **Modals and dialogs** — need to sit above all other content
+- **Tooltips** — need to break out of `overflow: hidden` containers
+- **Dropdown menus** — same overflow problem as tooltips
+- **Toast notifications** — need to appear at the edge of the screen regardless of position in the tree
+- **Full-screen overlays** — loading screens, image lightboxes
+
+### Key things to remember:
+
+```
+✅ Even though the portal renders in a different DOM node:
+   - React event bubbling still works through the React component tree (not DOM tree)
+   - Context values are still accessible inside the portal
+   - State and props work exactly the same
+
+✅ The portal target div (#modal-root) must exist in index.html before the portal renders
+```
+
+### Close modal on Escape key or backdrop click:
+
+```jsx
+import { useEffect } from 'react'
+import { createPortal } from 'react-dom'
+
+function Modal({ isOpen, onClose, children }) {
+  // close when user presses Escape key
+  useEffect(() => {
+    function handleKeyDown(e) {
+      if (e.key === 'Escape') onClose()
+    }
+    if (isOpen) {
+      document.addEventListener('keydown', handleKeyDown)
+    }
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [isOpen, onClose])
+
+  if (!isOpen) return null
+
+  return createPortal(
+    <div
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000 }}
+      onClick={onClose}   // close when clicking the backdrop
+    >
+      <div
+        style={{ background: 'white', padding: '24px', margin: '100px auto', maxWidth: '500px', borderRadius: '8px' }}
+        onClick={e => e.stopPropagation()}  // prevent closing when clicking inside modal
+      >
+        {children}
+      </div>
+    </div>,
+    document.getElementById('modal-root')
+  )
+}
+
+export default Modal
+```
+
+---
+
+
 
 | Pattern | Problem it solves | Modern alternative |
 |---|---|---|
